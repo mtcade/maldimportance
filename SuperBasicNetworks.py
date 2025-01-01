@@ -75,7 +75,7 @@ class SimpleNN():
         
         input = tf.keras.layers.Input(
             shape = (input_length,),
-            name = 'input'
+            name = 'keras_tensor'
         )
         
         first_layer_width: int | float = hyperparameters[
@@ -127,7 +127,7 @@ class SimpleNN():
         )( dense_next )
         
         model: tf.keras.Model = tf.keras.Model(
-            [ input ],
+            input,
             output
         )
         
@@ -152,18 +152,9 @@ class SimpleNN():
             hyperparameters = self.hyperparameters
         )
         
-        # TODO: Test new shape method
-        _X: tf.Tensor = tf.convert_to_tensor(
-            [X], dtype = tf.float32
-        )
-        _y: tf.Tensor = tf.convert_to_tensor(
-            [y], dtype = tf.float32
-        )
-        
-        # TODO: callbacks
         self.network.fit(
-            x = _X,
-            y = _y,
+            x = X,
+            y = y,
             epochs = self.epochs
         )
         return
@@ -171,9 +162,7 @@ class SimpleNN():
     
     def predict( self, X: np.ndarray ) -> np.ndarray:
         prediction: np.ndarray = self.network.predict(
-            tf.convert_to_tensor(
-                [X], dtype = tf.float32
-            )
+            X
         ).reshape( (X.shape[0],) )
         return prediction
     #

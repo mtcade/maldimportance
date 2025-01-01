@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from typing import Callable, Protocol, Self
+from typing import Callable, Literal, Protocol, Self
 from abc import abstractmethod
 
 class PredictionModel( Protocol ):
@@ -11,7 +11,7 @@ class PredictionModel( Protocol ):
     #
     
     @abstractmethod
-    def predict( X: np.ndarray ) -> np.ndarray
+    def predict( X: np.ndarray ) -> np.ndarray:
         ...
     #
 #/class PredictionModel( Protocol )
@@ -34,7 +34,7 @@ def _get_oheDict(
         if X.dtypes.iloc[ _j ] == 'category':
             # OHE columns = value_counts - 1
             value_counts = len( X[ X.columns[_j] ].value_counts() )
-            ohe_dict[ _j ] = list(
+            ohe_dict[ _j+starting_index ] = list(
                 range(
                     col_iterator,
                     col_iterator + value_counts - counts_adjust
@@ -44,7 +44,7 @@ def _get_oheDict(
         #
         else:
             # Numeric, one column
-            ohe_dict[ _j ] = col_iterator
+            ohe_dict[ _j+starting_index ] = col_iterator
             col_iterator += 1
         #/if X.dtypes[ _j ] == 'category'/else
     #/for _j in range( X.shape[1] )
@@ -82,7 +82,7 @@ def _localGrad_forCategories(
     # Use last index setting all to 0
     if drop_first:
         _X[ :, j ] = 0
-        y_out[ :, -1 ] = model.predict( _ X )
+        y_out[ :, -1 ] = model.predict( _X )
     #
     
     # Take the change in prediction for each column
@@ -112,7 +112,7 @@ def _localGrad_forIndex(
     return ( model.predict( _X ) - y ) / bandwidth
 #/def _localGrad_forIndex
 
-def importanceFromModel(
+def importancesFromModel(
     model: PredictionModel,
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
@@ -136,7 +136,7 @@ def importanceFromModel(
         drop_first: Passes to `pd.get_dummies` when categorical variables are present. Likely should be true unless `model` can handle the perfect colinearity (neural networks for example).
         **kwargs: passed to `model.fit`
         
-        returns W stats
+        returns W stats, from the absolute difference
     """
     assert X.shape == Xk.shape
     
@@ -148,7 +148,7 @@ def importanceFromModel(
     _Xk: np.ndarray
     
     if isinstance( X, pd.DataFrame ):
-        assert all( X.dtypes == Xk.dtypes )
+        assert all( X.dtypes.iloc[j] == Xk.dtypes.iloc[j] for j in range( X.shape[1] ) )
         if any( dtype == 'category' for dtype in X.dtypes ):
             oheDict_X = _get_oheDict(
                 X = X, drop_first = drop_first, starting_index = 0
@@ -159,11 +159,11 @@ def importanceFromModel(
             
             _X = pd.get_dummies(
                 X, drop_first = drop_first
-            ).to_numpy()
+            ).to_numpy( dtype = float )
             
             _Xk = pd.get_dummies(
                 Xk, drop_first = drop_first
-            ).to_numpy()
+            ).to_numpy( dtype = float )
         #
         else:
             oheDict_X = {}
@@ -199,13 +199,12 @@ def importanceFromModel(
     
     bandwidth_lambda: Callable[ [int], float ]
     if use_std:
-        _bandwidths_list: np.ndarray = np.std( X_concat, axis = 1 )*bandwidth
+        _bandwidths_list: np.ndarray = np.std( X_concat, axis = 0 )*bandwidth
         bandwidth_lambda = lambda j: _bandwidths_list[j]
     #
     else:
         bandwidth_lambda = lambda j: bandwidth
     #
-    
     
     model.fit( X_concat, _y, **kwargs )
     
@@ -229,7 +228,7 @@ def importanceFromModel(
     #/if oheDict == {}
     else:
         # Some categories
-        for j in for j in range( localGrad_matrix.shape[1] ):
+        for j in range( localGrad_matrix.shape[1] ):
             if isinstance( oheDict[j], int ):
                 # numeric
                 localGrad_matrix[:,j] = _localGrad_forIndex(
@@ -253,8 +252,64 @@ def importanceFromModel(
         #
     #/if oheDict == {}/else
     
-    return np.mean(
+    importances: np.ndarray = np.mean(
         np.abs( localGrad_matrix )**exponent,
         axis = 0
     )
-#/def importanceFromModel
+    return importances
+#/def importancesFromModel
+
+def wFromImportances(
+    importances: np.ndarray,
+    W_method: Literal['difference','signed_max'] = 'difference'
+    ) -> np.ndarray:
+    p: int = len( importances ) // 2
+    W_out: np.ndarray
+    if W_method == 'difference':
+        W_out = importances[ : p ] - importances[ p: ]
+    #
+    elif W_method == 'signed_max':
+        W_out = np.zeros( shape = ( p,) )
+        for j in range(p):
+            if importances[ j ] > importances[ j+p ]:
+                W_out[ j ] = importances[ j ]
+            #
+            elif importances[ j ] < importances[ j+p ]:
+                W_out[ j ] = importances[ j+p ]
+            #/switch importances[ j ] - importances[ j+p ]
+        #/for j in range(p)
+    else:
+        raise Exception("Unrecognized W_method={}".format(W_method))
+    #
+    return W_out
+#/def wFromImportances
+
+def wFromModel(
+    model: PredictionModel,
+    X: np.ndarray | pd.DataFrame,
+    Xk: np.ndarray | pd.DataFrame,
+    y: np.ndarray | pd.Series,
+    W_method: Literal['difference','signed_max'] = 'difference',
+    bandwidth: float | None = None,
+    use_std: bool = True,
+    exponent: float = 2.0,
+    drop_first: bool = True,
+    **kwargs
+    ) -> np.ndarray:
+    
+    importances: np.ndarray = importancesFromModel(
+        X = X,
+        Xk = Xk,
+        y = y,
+        bandwidth = bandwidth,
+        use_std = use_std,
+        exponent = exponent,
+        drop_first = drop_first,
+        **kwargs
+    )
+    
+    return wFromImportances(
+        importances = importances,
+        W_method = W_method
+    )
+#/def wFromModel
