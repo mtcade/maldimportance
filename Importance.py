@@ -98,7 +98,7 @@ def _localGrad_forIndex(
     X: np.ndarray,
     y: np.ndarray,
     model: PredictionModel,
-    bandwidth_lambda: Callable[ int, list[ int ] ]
+    bandwidth_lambda: Callable[ [int], float ]
     ) -> np.ndarray:
     """
         Take an estimate of the local derivative
