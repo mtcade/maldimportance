@@ -5,11 +5,11 @@
 """
 import tensorflow as tf
 import numpy as np
-from typing import Literal
+from typing import Literal, Self
 
 class SimpleNN():
     def __init__(
-        self,
+        self: Self,
         save_root: str,
         save_name: str,
         epochs: int,
@@ -20,7 +20,7 @@ class SimpleNN():
         layer_shrink_factor: float,
         learning_rate: float,
         verbose: int = 0
-        ):
+        ) -> Self:
         """
             Sets parameters
         """
@@ -49,7 +49,7 @@ class SimpleNN():
     #
     
     def getNetwork(
-        self,
+        self: Self,
         input_length: int,
         hyperparameters: dict[ str, any ]
         ) -> tf.keras.Model:
@@ -143,10 +143,10 @@ class SimpleNN():
     #/def getNetwork
     
     def fit(
-        self,
+        self: Self,
         X: np.ndarray,
         y: np.ndarray
-        ):
+        ) -> Self:
         self.network = self.getNetwork(
             input_length = X.shape[1],
             hyperparameters = self.hyperparameters
@@ -160,11 +160,14 @@ class SimpleNN():
         return
     #
     
-    def predict( self, X: np.ndarray ) -> np.ndarray:
-        prediction: np.ndarray = self.network.predict(
+    def predict( self: Self, X: np.ndarray ) -> np.ndarray:
+        return self.network.predict(
             X
         ).reshape( (X.shape[0],) )
-        return prediction
+    #
+    
+    def call( self, X: np.ndarray | tf.Tensor ) -> np.ndarray | tf.Tensor:
+        return self.network.call( X )
     #
 #/class SimpleNN
 

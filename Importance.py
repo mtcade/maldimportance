@@ -6,15 +6,37 @@ from abc import abstractmethod
 
 class PredictionModel( Protocol ):
     @abstractmethod
-    def fit( X: np.ndarray, y: np.ndarray, **kwargs ) -> Self:
+    def fit( self: Self, X: np.ndarray, y: np.ndarray, **kwargs ) -> Self:
         ...
     #
     
     @abstractmethod
-    def predict( X: np.ndarray ) -> np.ndarray:
+    def predict( self: Self, X: np.ndarray ) -> np.ndarray:
+        ...
+    #
+    
+    @abstractmethod
+    def call( self: Self, X ):
         ...
     #
 #/class PredictionModel( Protocol )
+
+def auto_diff(
+    model: PredictionModel,
+    X: np.ndarray
+    ) -> np.ndarray:
+    import tensorflow as tf
+    
+    _X = tf.constant( X )
+        
+    tape: tf.GradientTape
+    with tf.GradientTape() as tape:
+        tape.watch( _X )
+        y_hat: tf.Tensor = model.call( _X )
+    #
+    
+    return tape.gradient( y_hat, _X ).numpy()
+#/def auto_diff
 
 def _get_oheDict(
     X: pd.DataFrame,
@@ -54,7 +76,6 @@ def _get_oheDict(
 def _localGrad_forCategories(
     j: list[ int ],
     X: np.ndarray,
-    y: np.ndarray,
     model: PredictionModel,
     drop_first: bool
     ) -> np.ndarray:
@@ -85,40 +106,14 @@ def _localGrad_forCategories(
         y_out[ :, -1 ] = model.predict( _X )
     #
     
-    # Take the change in prediction for each column
-    for h in range( y_out.shape[1] ):
-        y_out[:,h] -= y
-    #
-    
     return np.max( y_out, axis = 1 ) - np.min( y_out, axis = 1 )
 #/def _localGrad_forCategories
-
-def _localGrad_forIndex(
-    j: int,
-    X: np.ndarray,
-    y: np.ndarray,
-    model: PredictionModel,
-    bandwidth_lambda: Callable[ [int], float ]
-    ) -> np.ndarray:
-    """
-        Take an estimate of the local derivative
-    """
-    _X: np.ndarray = np.copy( X )
-    
-    bandwidth: float = bandwidth_lambda(j)
-    
-    _X[:,j] += bandwidth
-    
-    return ( model.predict( _X ) - y ) / bandwidth
-#/def _localGrad_forIndex
 
 def importancesFromModel(
     model: PredictionModel,
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
-    bandwidth: float | None = None,
-    use_std: bool = True,
     exponent: float = 2.0,
     drop_first: bool = True,
     **kwargs
@@ -131,7 +126,6 @@ def importancesFromModel(
         y: outcome data
         bandwidth: amount to perturb X[j] and Xk[j], defaulting to (n**(-0.2)), where
             n is sample size, or X.shape[0]
-        use_std: If True, multiply bandwidth by `np.std( X[j] )` for variable j
         exponent: Power to take of the absolute value of local gradients
         drop_first: Passes to `pd.get_dummies` when categorical variables are present. Likely should be true unless `model` can handle the perfect colinearity (neural networks for example).
         **kwargs: passed to `model.fit`
@@ -191,65 +185,41 @@ def importancesFromModel(
     #
     else:
         _y = y
-    #
-    
-    if bandwidth is None:
-        bandwidth = X.shape[0]**(-0.2)
-    #
-    
-    bandwidth_lambda: Callable[ [int], float ]
-    if use_std:
-        _bandwidths_list: np.ndarray = np.std( X_concat, axis = 0 )*bandwidth
-        bandwidth_lambda = lambda j: _bandwidths_list[j]
-    #
-    else:
-        bandwidth_lambda = lambda j: bandwidth
-    #
+    #/if isinstance( y, pd.Series )/else
     
     model.fit( X_concat, _y, **kwargs )
-    
-    predictions_base = model.predict( X_concat )
-
-    localGrad_matrix: np.ndarray = np.zeros(
-        shape = ( X.shape[0], X.shape[1] + Xk.shape[1] )
+    auto_diff_matrix: np.ndarray = auto_diff(
+        model,
+        X_concat
     )
-    
+
+    p_out: int = X.shape[0], X.shape[1] + Xk.shape[1]
+    localGrad_matrix: np.ndarray
+
     if oheDict == {}:
-        # Numeric
-        for j in range( localGrad_matrix.shape[1] ):
-            localGrad_matrix[:,j] = _localGrad_forIndex(
-                j = j,
-                X = X_concat,
-                y = predictions_base,
-                model = model,
-                bandwidth_lambda = bandwidth_lambda
-            )
-        #/for j in range( localGrad_matrix.shape[1] )
+        # all numeric
+        localGrad_matrix = auto_diff_matrix
     #/if oheDict == {}
     else:
         # Some categories
-        for j in range( localGrad_matrix.shape[1] ):
+        localGrad_matrix: np.ndarray = np.zeros(
+            shape = ( X.shape[0], p_out )
+        )
+        for j in range( p_out ):
             if isinstance( oheDict[j], int ):
                 # numeric
-                localGrad_matrix[:,j] = _localGrad_forIndex(
-                    j = oheDict[j],
-                    X = X_concat,
-                    y = predictions_base,
-                    model = model,
-                    bandwidth_lambda = bandwidth_lambda
-                )
+                localGrad_matrix[:,j] = auto_diff_matrix[:, oheDict[j] ]
             #
             else:
                 # category
                 localGrad_matrix[:,j] = _localGrad_forCategories(
                     j = oheDict[j],
                     X = X_concat,
-                    y = predictions_base,
                     model = model,
                     drop_first = drop_first
                 )
-            #
-        #
+            #/if isinstance( oheDict[j], int )/else
+        #/for j in range( p_out )
     #/if oheDict == {}/else
     
     importances: np.ndarray = np.mean(
@@ -290,8 +260,6 @@ def wFromModel(
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
     W_method: Literal['difference','signed_max'] = 'difference',
-    bandwidth: float | None = None,
-    use_std: bool = True,
     exponent: float = 2.0,
     drop_first: bool = True,
     **kwargs
@@ -301,8 +269,6 @@ def wFromModel(
         X = X,
         Xk = Xk,
         y = y,
-        bandwidth = bandwidth,
-        use_std = use_std,
         exponent = exponent,
         drop_first = drop_first,
         **kwargs
