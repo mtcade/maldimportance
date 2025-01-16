@@ -11,8 +11,6 @@ def importances(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
-    bandwidth: float | None = None,
-    use_std: bool = True,
     exponent: float = 2.0,
     drop_first: bool = True,
     # SuperBasicNetworks Parameters
@@ -50,8 +48,6 @@ def importances(
         X = X,
         Xk = Xk,
         y = y,
-        bandwidth = bandwidth,
-        use_std = use_std,
         exponent = exponent,
         drop_first = drop_first
     )
@@ -62,8 +58,6 @@ def wStats(
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
     W_method: Literal['difference','signed_max'] = 'difference',
-    bandwidth: float | None = None,
-    use_std: bool = True,
     exponent: float = 2.0,
     drop_first: bool = True,
     # SuperBasicNetworks Parameters
@@ -86,8 +80,6 @@ def wStats(
         X = X,
         Xk = Xk,
         y = y,
-        bandwidth = bandwidth,
-        use_std = use_std,
         exponent = exponent,
         drop_first = drop_first,
         # SuperBasicNetworks Parameters
