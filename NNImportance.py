@@ -49,7 +49,8 @@ def importances(
         Xk = Xk,
         y = y,
         exponent = exponent,
-        drop_first = drop_first
+        drop_first = drop_first,
+        verbose = verbose
     )
 #/def importances
 
@@ -73,7 +74,7 @@ def wStats(
     verbose: int = 0
     ) -> np.ndarray:
     """
-        ...
+        W statistics from a SuperBasicNetwork.SimpleNN local grad importance
     """
     from . import Importance
     _importances: np.ndarray = importances(
@@ -97,6 +98,7 @@ def wStats(
     
     return Importance.wFromImportances(
         importances = _importances,
-        W_method = W_method
+        W_method = W_method,
+        verbose = verbose
     )
 #/def

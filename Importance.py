@@ -114,9 +114,10 @@ def importancesFromModel(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
+    fit: bool = True,
     exponent: float = 2.0,
     drop_first: bool = True,
-    **kwargs
+    verbose: int = 0
     ) -> np.ndarray:
     """
         Takes an initialized PredictionModel, fits it, and gets the local gradient importance
@@ -187,7 +188,12 @@ def importancesFromModel(
         _y = y
     #/if isinstance( y, pd.Series )/else
     
-    model.fit( X_concat, _y, **kwargs )
+    # Fit if necessary; we can have a model already trained
+    #   by setting to False
+    if fit:
+        model.fit( X_concat, _y, )
+    #/if fit
+    
     auto_diff_matrix: np.ndarray = auto_diff(
         model,
         X_concat
@@ -231,7 +237,8 @@ def importancesFromModel(
 
 def wFromImportances(
     importances: np.ndarray,
-    W_method: Literal['difference','signed_max'] = 'difference'
+    W_method: Literal['difference','signed_max'] = 'difference',
+    verbose: int = 0
     ) -> np.ndarray:
     p: int = len( importances ) // 2
     W_out: np.ndarray
@@ -261,8 +268,7 @@ def wFromModel(
     y: np.ndarray | pd.Series,
     W_method: Literal['difference','signed_max'] = 'difference',
     exponent: float = 2.0,
-    drop_first: bool = True,
-    **kwargs
+    drop_first: bool = True
     ) -> np.ndarray:
     
     importances: np.ndarray = importancesFromModel(
@@ -270,8 +276,7 @@ def wFromModel(
         Xk = Xk,
         y = y,
         exponent = exponent,
-        drop_first = drop_first,
-        **kwargs
+        drop_first = drop_first
     )
     
     return wFromImportances(
