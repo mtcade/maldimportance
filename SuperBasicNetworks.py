@@ -171,7 +171,7 @@ class SimpleNN():
     #
 #/class SimpleNN
 
-def get_simpleNN(
+def get_SimpleNN(
     save_root: str = '',
     save_name: str = '',
     epochs: int = 500,
@@ -197,4 +197,92 @@ def get_simpleNN(
         learning_rate = learning_rate,
         verbose = verbose
     )
-#/def get_simpleNN
+#/def get_SimpleNN
+
+def fit_SimpleNN(
+    X: np.ndarray | pd.DataFrame,
+    Xk: np.ndarray | pd.DataFrame,
+    y: np.ndarray | pd.Series,
+    save_root: str = '',
+    save_name: str = '',
+    epochs: int = 500,
+    dense_activation: str = 'relu', # 'relu', 'sigmoid',...
+    # Hyper parameters
+    first_layer_width: float | int = 0.25, # int = absolute size, float = proportion of input
+    layers: int = 2,
+    layer_shrink_factor: float = 0.25,
+    learning_rate: float = 0.01,
+    verbose: int = 0
+    ) -> SimpleNN:
+    """
+        Initialize and run fit with SimpleNN
+    """
+    
+    model: SimpleNN = get_SimpleNN(
+        save_root = save_root,
+        save_name = save_name,
+        epochs = epochs,
+        dense_activation = dense_activation,
+        first_layer_width = first_layer_width,
+        layers = layers,
+        layer_shrink_factor = layer_shrink_factor,
+        learning_rate = learning_rate,
+        verbose = verbose
+    )
+    
+    if isinstance( X, pd.DataFrame ):
+        assert all( X.dtypes.iloc[j] == Xk.dtypes.iloc[j] for j in range( X.shape[1] ) )
+        from . import Utilities
+        
+        if any( dtype == 'category' for dtype in X.dtypes ):
+            oheDict_X = Utilities.get_oheDict(
+                X = X,
+                drop_first = drop_first,
+                starting_index = 0
+            )
+            oheDict_Xk = Utilities.get_oheDict(
+                X = Xk,
+                drop_first = drop_first,
+                starting_index = X.shape[1]
+            )
+            
+            _X = pd.get_dummies(
+                X, drop_first = drop_first
+            ).to_numpy( dtype = float )
+            
+            _Xk = pd.get_dummies(
+                Xk, drop_first = drop_first
+            ).to_numpy( dtype = float )
+        #
+        else:
+            oheDict_X = {}
+            oheDict_Xk = {}
+            _X = X.to_numpy()
+            _Xk = Xk.to_numpy()
+        #/if any( dtype == 'category' for dtype in X.dtypes )
+    #/if isinstance( X, pd.DataFrame )
+    else:
+        oheDict_X = {}
+        oheDict_Xk = {}
+        _X = X
+        _Xk = Xk
+    #/if isinstance( X, pd.DataFrame )/else
+    
+    oheDict: dict[ int, int | list[int] ] = oheDict_X | oheDict_Xk
+    
+    X_concat: np.ndarray = np.concatenate(
+        [_X, _Xk ], axis = 1
+    )
+    
+    _y: np.ndarray
+    if isinstance( y, pd.Series ):
+        _y = y.to_numpy()
+    #
+    else:
+        _y = y
+    #/if isinstance( y, pd.Series )/else
+    
+    model.fit( X_concat, _y, )
+    
+    return model
+#/def

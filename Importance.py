@@ -38,41 +38,6 @@ def auto_diff(
     return tape.gradient( y_hat, _X ).numpy()
 #/def auto_diff
 
-def _get_oheDict(
-    X: pd.DataFrame,
-    drop_first: bool = True,
-    starting_index: int = 0
-    ) -> dict[ int, int | list[ int ] ]:
-    """
-        Result maps original column to single column if numeric, list of OHE columns for categories
-        
-        If drop_first, it does number of categories minus 1
-    """
-    counts_adjust: int = 1 if drop_first else 0
-    
-    ohe_dict: dict[ int, int | list[ int ] ] = {}
-    col_iterator: int = starting_index
-    for _j in range( X.shape[1] ):
-        if X.dtypes.iloc[ _j ] == 'category':
-            # OHE columns = value_counts - 1
-            value_counts = len( X[ X.columns[_j] ].value_counts() )
-            ohe_dict[ _j+starting_index ] = list(
-                range(
-                    col_iterator,
-                    col_iterator + value_counts - counts_adjust
-                )
-            )
-            col_iterator += ( value_counts - counts_adjust )
-        #
-        else:
-            # Numeric, one column
-            ohe_dict[ _j+starting_index ] = col_iterator
-            col_iterator += 1
-        #/if X.dtypes[ _j ] == 'category'/else
-    #/for _j in range( X.shape[1] )
-    return ohe_dict
-#/def _get_oheDict
-
 def _localGrad_forCategories(
     j: list[ int ],
     X: np.ndarray,
@@ -144,12 +109,18 @@ def importancesFromModel(
     
     if isinstance( X, pd.DataFrame ):
         assert all( X.dtypes.iloc[j] == Xk.dtypes.iloc[j] for j in range( X.shape[1] ) )
+        from . import Utilities
+        
         if any( dtype == 'category' for dtype in X.dtypes ):
-            oheDict_X = _get_oheDict(
-                X = X, drop_first = drop_first, starting_index = 0
+            oheDict_X = Utilities.get_oheDict(
+                X = X,
+                drop_first = drop_first,
+                starting_index = 0
             )
-            oheDict_Xk = _get_oheDict(
-                X = Xk, drop_first = drop_first, starting_index = X.shape[1]
+            oheDict_Xk = Utilities.get_oheDict(
+                X = Xk,
+                drop_first = drop_first,
+                starting_index = X.shape[1]
             )
             
             _X = pd.get_dummies(
@@ -199,7 +170,7 @@ def importancesFromModel(
         X_concat
     )
 
-    p_out: int = X.shape[0], X.shape[1] + Xk.shape[1]
+    p_out: int = X.shape[1] + Xk.shape[1]
     localGrad_matrix: np.ndarray
 
     if oheDict == {}:
@@ -267,16 +238,21 @@ def wFromModel(
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
     W_method: Literal['difference','signed_max'] = 'difference',
+    fit: bool = True,
     exponent: float = 2.0,
-    drop_first: bool = True
+    drop_first: bool = True,
+    verbose: int = 0
     ) -> np.ndarray:
     
     importances: np.ndarray = importancesFromModel(
+        model = model,
         X = X,
         Xk = Xk,
         y = y,
+        fit = fit,
         exponent = exponent,
-        drop_first = drop_first
+        drop_first = drop_first,
+        verbose = verbose
     )
     
     return wFromImportances(

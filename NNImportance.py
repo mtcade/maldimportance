@@ -48,6 +48,7 @@ def importances(
         X = X,
         Xk = Xk,
         y = y,
+        fit = True,
         exponent = exponent,
         drop_first = drop_first,
         verbose = verbose
