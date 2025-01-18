@@ -4,7 +4,9 @@
     The basic architecture is a few dense layers, either shrinking in layer size or staying the same.
 """
 import tensorflow as tf
+import pandas as pd
 import numpy as np
+
 from typing import Literal, Self
 
 class SimpleNN():
@@ -203,6 +205,7 @@ def fit_SimpleNN(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
+    drop_first: bool = True,
     save_root: str = '',
     save_name: str = '',
     epochs: int = 500,

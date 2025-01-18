@@ -124,11 +124,13 @@ def importancesFromModel(
             )
             
             _X = pd.get_dummies(
-                X, drop_first = drop_first
+                X,
+                drop_first = drop_first
             ).to_numpy( dtype = float )
             
             _Xk = pd.get_dummies(
-                Xk, drop_first = drop_first
+                Xk,
+                drop_first = drop_first
             ).to_numpy( dtype = float )
         #
         else:
