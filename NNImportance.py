@@ -11,6 +11,8 @@ def importances(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
+    local_grad_method: Literal['auto_diff','bandwidth'] = 'bandwidth',
+    bandwidth: float | None = None,
     exponent: float = 2.0,
     drop_first: bool = True,
     # SuperBasicNetworks Parameters
@@ -59,7 +61,9 @@ def wStats(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
+    local_grad_method: Literal['auto_diff','bandwidth'] = 'bandwidth',
     W_method: Literal['difference','signed_max'] = 'difference',
+    bandwidth: float | None = None,
     exponent: float = 2.0,
     drop_first: bool = True,
     # SuperBasicNetworks Parameters

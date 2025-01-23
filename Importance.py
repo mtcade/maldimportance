@@ -38,6 +38,28 @@ def auto_diff(
     return tape.gradient( y_hat, _X ).numpy()
 #/def auto_diff
 
+def _localGrad_forNumeric(
+    j: int,
+    X: np.ndarray,
+    y_hat: np.ndarray,
+    model: PredictionModel,
+    bandwidth: float
+    ) -> np.ndarray:
+    """
+        Get the bandwidth local gradient approximation for variable j
+        X: all data
+        y_hat: The base prediction, result of `model.predict(X)`
+        model: PredictionModel already fit and trained
+        bandwidth: Exact literal value
+    """
+    # Set the X + bandwidth matrix
+    X_epsilon: np.ndarray = np.copy( X )
+    X_epsilon[:, j ] += bandwidth
+    
+    # Get the approximation of local gradient via the definition of the derivative
+    return ( model.predict(X_epsilon) - y_hat )/bandwidth
+#/def _localGrad_forNumeric
+
 def _localGrad_forCategories(
     j: list[ int ],
     X: np.ndarray,
@@ -79,7 +101,9 @@ def importancesFromModel(
     X: np.ndarray | pd.DataFrame,
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
+    local_grad_method: Literal['auto_diff','bandwidth'] = 'bandwidth',
     fit: bool = True,
+    bandwidth: float | None = None,
     exponent: float = 2.0,
     drop_first: bool = True,
     verbose: int = 0
@@ -90,8 +114,10 @@ def importancesFromModel(
         X: data
         Xk: knockoff data
         y: outcome data
+        local_grad_method: Whether to use autodifferentiation or a bandwidth method
         bandwidth: amount to perturb X[j] and Xk[j], defaulting to (n**(-0.2)), where
             n is sample size, or X.shape[0]
+            Used only when `local_grad_method == 'bandwidth'`
         exponent: Power to take of the absolute value of local gradients
         drop_first: Passes to `pd.get_dummies` when categorical variables are present. Likely should be true unless `model` can handle the perfect colinearity (neural networks for example).
         **kwargs: passed to `model.fit`
@@ -167,17 +193,52 @@ def importancesFromModel(
         model.fit( X_concat, _y, )
     #/if fit
     
-    auto_diff_matrix: np.ndarray = auto_diff(
-        model,
-        X_concat
-    )
+    auto_diff_matrix: np.ndarray | None
+    y_hat: np.ndarray | None
+    if local_grad_method == 'auto_diff':
+        auto_diff_matrix: np.ndarray = auto_diff(
+            model,
+            X_concat
+        )
+        y_hat = None
+    #
+    elif local_grad_method == 'bandwidth':
+        auto_diff_matrix = None
+        y_hat = model.predict( X_concat )
+        
+        if bandwidth is None:
+            bandwidth = X_concat.shape[0]**(-0.2)
+        #/if bandwidth is None
+    #
+    else:
+        raise Exception("Unrecognized local_grad_method={}".format(local_grad_method))
+    #/switch local_grad_method
 
     p_out: int = X.shape[1] + Xk.shape[1]
     localGrad_matrix: np.ndarray
 
     if oheDict == {}:
         # all numeric
-        localGrad_matrix = auto_diff_matrix
+        if local_grad_method == 'auto_diff':
+            localGrad_matrix = auto_diff_matrix
+        #
+        elif local_grad_method == 'bandwidth':
+            localGrad_matrix = np.zeros(
+                shape = X_concat.shape
+            )
+            for j in range( X_concat.shape[1] ):
+                localGrad_matrix[ :, j ] = _localGrad_forNumeric(
+                    j = j,
+                    X = X_concat,
+                    y_hat = y_hat,
+                    model = model,
+                    bandwidth = bandwidth
+                )
+            #
+        #
+        else:
+            raise Exception("Unrecognized local_grad_method={}".format(local_grad_method))
+        #/switch local_grad_method
     #/if oheDict == {}
     else:
         # Some categories
@@ -187,7 +248,21 @@ def importancesFromModel(
         for j in range( p_out ):
             if isinstance( oheDict[j], int ):
                 # numeric
-                localGrad_matrix[:,j] = auto_diff_matrix[:, oheDict[j] ]
+                if local_grad_method == 'auto_diff':
+                    localGrad_matrix[:,j] = auto_diff_matrix[:, oheDict[j] ]
+                #
+                elif local_grad_method == 'bandwidth':
+                    localGrad_matrix[ :, j ] = _localGrad_forNumeric(
+                        j = oheDict[j],
+                        X = X_concat,
+                        y_hat = y_hat,
+                        model = model,
+                        bandwidth = bandwidth
+                    )
+                #
+                else:
+                    raise Exception("Unrecognized local_grad_method={}".format(local_grad_method))
+                #/switch local_grad_method
             #
             else:
                 # category
@@ -205,6 +280,7 @@ def importancesFromModel(
         np.abs( localGrad_matrix )**exponent,
         axis = 0
     )
+    
     return importances
 #/def importancesFromModel
 
@@ -240,8 +316,10 @@ def wFromModel(
     Xk: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.Series,
     W_method: Literal['difference','signed_max'] = 'difference',
+    local_grad_method: Literal['auto_diff','bandwidth'] = 'bandwidth',
     fit: bool = True,
     exponent: float = 2.0,
+    bandwidth: float | None = None,
     drop_first: bool = True,
     verbose: int = 0
     ) -> np.ndarray:
@@ -251,7 +329,9 @@ def wFromModel(
         X = X,
         Xk = Xk,
         y = y,
+        local_grad_method = local_grad_method,
         fit = fit,
+        bandwidth = bandwidth,
         exponent = exponent,
         drop_first = drop_first,
         verbose = verbose
