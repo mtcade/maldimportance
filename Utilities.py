@@ -3,7 +3,8 @@ import pandas as pd
 def get_oheDict(
     X: pd.DataFrame,
     drop_first: bool = True,
-    starting_index: int = 0
+    starting_index: int = 0,
+    starting_ohe_index: int = 0
     ) -> dict[ int, int | list[ int ] ]:
     """
         Result maps original column to single column if numeric, list of OHE columns for categories
@@ -13,7 +14,7 @@ def get_oheDict(
     counts_adjust: int = 1 if drop_first else 0
     
     ohe_dict: dict[ int, int | list[ int ] ] = {}
-    col_iterator: int = starting_index
+    col_iterator: int = starting_ohe_index
     for _j in range( X.shape[1] ):
         if X.dtypes.iloc[ _j ] == 'category':
             # OHE columns = value_counts - 1

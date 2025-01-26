@@ -138,17 +138,6 @@ def importancesFromModel(
         from . import Utilities
         
         if any( dtype == 'category' for dtype in X.dtypes ):
-            oheDict_X = Utilities.get_oheDict(
-                X = X,
-                drop_first = drop_first,
-                starting_index = 0
-            )
-            oheDict_Xk = Utilities.get_oheDict(
-                X = Xk,
-                drop_first = drop_first,
-                starting_index = X.shape[1]
-            )
-            
             _X = pd.get_dummies(
                 X,
                 drop_first = drop_first
@@ -158,6 +147,20 @@ def importancesFromModel(
                 Xk,
                 drop_first = drop_first
             ).to_numpy( dtype = float )
+            
+            oheDict_X = Utilities.get_oheDict(
+                X = X,
+                drop_first = drop_first,
+                starting_index = 0
+            )
+            oheDict_Xk = Utilities.get_oheDict(
+                X = Xk,
+                drop_first = drop_first,
+                starting_index = X.shape[1],
+                starting_ohe_index = _X.shape[1]
+            )
+            
+            
         #
         else:
             oheDict_X = {}
@@ -266,6 +269,21 @@ def importancesFromModel(
             #
             else:
                 # category
+                # TEST: 2025-01-26
+                if False:
+                    print("# {} -> {}".format(j,oheDict[j]))
+                    
+                    if j < X.shape[1]:
+                        print(" -- X:")
+                        print( X.iloc[0:5, j])
+                    #
+                    else:
+                        print(" -- Xk:")
+                        print( Xk.iloc[0:5,j-X.shape[1]] )
+                    #
+                    print(" -- OHE:")
+                    print( X_concat[0:5, oheDict[j]] )
+                #
                 localGrad_matrix[:,j] = _localGrad_forCategories(
                     j = oheDict[j],
                     X = X_concat,
@@ -280,7 +298,11 @@ def importancesFromModel(
         np.abs( localGrad_matrix )**exponent,
         axis = 0
     )
-    
+    # TEST: 2025-01-26
+    if False:
+        print( importances )
+        raise Exception("Check importances")
+    #
     return importances
 #/def importancesFromModel
 

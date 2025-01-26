@@ -238,17 +238,7 @@ def fit_SimpleNN(
         from . import Utilities
         
         if any( dtype == 'category' for dtype in X.dtypes ):
-            oheDict_X = Utilities.get_oheDict(
-                X = X,
-                drop_first = drop_first,
-                starting_index = 0
-            )
-            oheDict_Xk = Utilities.get_oheDict(
-                X = Xk,
-                drop_first = drop_first,
-                starting_index = X.shape[1]
-            )
-            
+            # TEST: 2025-01-26
             _X = pd.get_dummies(
                 X, drop_first = drop_first
             ).to_numpy( dtype = float )
@@ -256,6 +246,21 @@ def fit_SimpleNN(
             _Xk = pd.get_dummies(
                 Xk, drop_first = drop_first
             ).to_numpy( dtype = float )
+            
+            oheDict_X = Utilities.get_oheDict(
+                X = X,
+                drop_first = drop_first,
+                starting_index = 0,
+                starting_ohe_index = 0
+            )
+            oheDict_Xk = Utilities.get_oheDict(
+                X = Xk,
+                drop_first = drop_first,
+                starting_index = X.shape[1],
+                starting_ohe_index = _X.shape[1]
+            )
+            
+            
         #
         else:
             oheDict_X = {}
@@ -271,11 +276,38 @@ def fit_SimpleNN(
         _Xk = Xk
     #/if isinstance( X, pd.DataFrame )/else
     
-    oheDict: dict[ int, int | list[int] ] = oheDict_X | oheDict_Xk
+    oheDict = oheDict_X | oheDict_Xk
+    
     
     X_concat: np.ndarray = np.concatenate(
         [_X, _Xk ], axis = 1
     )
+    
+    # 2025-01-26: Debug
+    if oheDict != {} and False:
+        print( oheDict )
+        for col, val in oheDict.items():
+            print("# {} -> {}".format(col,val))
+            if col < X.shape[1]:
+                continue
+                if isinstance( X, pd.DataFrame ):
+                    print( X.iloc[0:5,col])
+                else:
+                    print( X[0:5,col])
+                #
+                print( X_concat[0:5, val ] )
+            #
+            else:
+                if isinstance( Xk, pd.DataFrame ):
+                    print( Xk.iloc[0:5,col-X.shape[1]])
+                else:
+                    print( Xk[0:5,col-X.shape[1]])
+                #
+                print( X_concat[ 0:5, val])
+            #
+        #
+        raise Exception("Check oheDict stuff")
+    #
     
     _y: np.ndarray
     if isinstance( y, pd.Series ):
