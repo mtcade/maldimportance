@@ -277,8 +277,7 @@ def fit_SimpleNN(
     #/if isinstance( X, pd.DataFrame )/else
     
     oheDict = oheDict_X | oheDict_Xk
-    
-    
+
     X_concat: np.ndarray = np.concatenate(
         [_X, _Xk ], axis = 1
     )
