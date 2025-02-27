@@ -28,7 +28,9 @@ def auto_diff(
     import tensorflow as tf
     
     _X = tf.constant( X )
-        
+    
+    y_pred = model.predict( _X )
+    
     tape: tf.GradientTape
     with tf.GradientTape() as tape:
         tape.watch( _X )
@@ -159,8 +161,6 @@ def importancesFromModel(
                 starting_index = X.shape[1],
                 starting_ohe_index = _X.shape[1]
             )
-            
-            
         #
         else:
             oheDict_X = {}
@@ -196,6 +196,7 @@ def importancesFromModel(
         model.fit( X_concat, _y, )
     #/if fit
     
+    
     auto_diff_matrix: np.ndarray | None
     y_hat: np.ndarray | None
     if local_grad_method == 'auto_diff':
@@ -204,10 +205,22 @@ def importancesFromModel(
             X_concat
         )
         y_hat = None
+        
+        # TEST 2025-02-15
+        print("# auto_diff_matrix")
+        print( auto_diff_matrix)
     #
     elif local_grad_method == 'bandwidth':
         auto_diff_matrix = None
         y_hat = model.predict( X_concat )
+        
+        # TEST 2025-02-15
+        print( _y )
+        print( y_hat )
+        
+        _y_diff = y_hat - _y
+        print( "_y_diff: {} ({})".format(np.mean(_y_diff),np.std(_y_diff)))
+        raise Exception("_y_diff")
         
         if bandwidth is None:
             bandwidth = X_concat.shape[0]**(-0.2)
@@ -252,16 +265,21 @@ def importancesFromModel(
             if isinstance( oheDict[j], int ):
                 # numeric
                 if local_grad_method == 'auto_diff':
-                    localGrad_matrix[:,j] = auto_diff_matrix[:, oheDict[j] ]
+                    column_grad = auto_diff_matrix[:, oheDict[j] ]
+                    print("grad {}".format(j))
+                    print( column_grad )
+                    localGrad_matrix[:,j] = column_grad
                 #
                 elif local_grad_method == 'bandwidth':
-                    localGrad_matrix[ :, j ] = _localGrad_forNumeric(
+                    column_grad = _localGrad_forNumeric(
                         j = oheDict[j],
                         X = X_concat,
                         y_hat = y_hat,
                         model = model,
                         bandwidth = bandwidth
                     )
+                    
+                    localGrad_matrix[ :, j ] = column_grad
                 #
                 else:
                     raise Exception("Unrecognized local_grad_method={}".format(local_grad_method))
@@ -269,28 +287,23 @@ def importancesFromModel(
             #
             else:
                 # category
-                # TEST: 2025-01-26
-                if False:
-                    print("# {} -> {}".format(j,oheDict[j]))
-                    
-                    if j < X.shape[1]:
-                        print(" -- X:")
-                        print( X.iloc[0:5, j])
-                    #
-                    else:
-                        print(" -- Xk:")
-                        print( Xk.iloc[0:5,j-X.shape[1]] )
-                    #
-                    print(" -- OHE:")
-                    print( X_concat[0:5, oheDict[j]] )
-                #
-                localGrad_matrix[:,j] = _localGrad_forCategories(
+                column_grad = _localGrad_forCategories(
                     j = oheDict[j],
                     X = X_concat,
                     model = model,
                     drop_first = drop_first
                 )
+                print("category {}".format(j))
+                print( column_grad )
+                localGrad_matrix[:,j] = column_grad
             #/if isinstance( oheDict[j], int )/else
+            if isinstance( oheDict[j], int ):
+                print("# Column {} (numeric)".format(j,))
+            #
+            else:
+                print("# Column {} (categorical)".format(j,))
+            #
+            print( localGrad_matrix[ :, j ] )
         #/for j in range( p_out )
     #/if oheDict == {}/else
     
@@ -298,11 +311,22 @@ def importancesFromModel(
         np.abs( localGrad_matrix )**exponent,
         axis = 0
     )
-    # TEST: 2025-01-26
-    if False:
+    # TEST: 2025-02-15
+    if True:
+        print( localGrad_matrix )
+        print( localGrad_matrix.shape )
         print( importances )
+        print( importances.shape )
         raise Exception("Check importances")
     #
+    
+    # Fix the shit: throw an error if it's a zero matrix
+    if np.allclose(
+        importances, 0
+    ):
+        raise Exception("Got zeros importances")
+    #
+    
     return importances
 #/def importancesFromModel
 

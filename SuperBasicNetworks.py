@@ -168,7 +168,7 @@ class SimpleNN():
         ).reshape( (X.shape[0],) )
     #
     
-    def call( self, X: np.ndarray | tf.Tensor ) -> np.ndarray | tf.Tensor:
+    def call( self: Self, X: np.ndarray | tf.Tensor ) -> np.ndarray | tf.Tensor:
         return self.network.call( X )
     #
 #/class SimpleNN
@@ -316,7 +316,7 @@ def fit_SimpleNN(
         _y = y
     #/if isinstance( y, pd.Series )/else
     
-    model.fit( X_concat, _y, )
+    model.fit( X_concat, _y )
     
     return model
 #/def fit_SimpleNN
